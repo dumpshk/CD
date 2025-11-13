@@ -1,0 +1,179 @@
+#include <stdio.h> 
+#include <string.h> 
+#include <ctype.h> 
+ 
+#define MAX 1000 
+ 
+void trim(char *s) { 
+    s[strcspn(s, "\n")] = 0; 
+    char *start = s; 
+    while (isspace(*start)) start++; 
+    memmove(s, start, strlen(start) + 1); 
+} 
+ 
+int modified[256]; 
+typedef struct { 
+    char var[50]; 
+    char expr[100]; 
+} ExprMap; 
+
+ 
+ExprMap exprMap[100]; 
+int exprCount = 0; 
+ 
+void markModified(const char *line) { 
+    char var[50]; 
+    if (sscanf(line, "%s =", var) == 1) { 
+        modified[(unsigned char)var[0]] = 1; 
+    } 
+} 
+ 
+int isModifiedBetween(char *vars) { 
+    for (int i = 0; vars[i]; i++) { 
+        if (modified[(unsigned char)vars[i]]) return 1; 
+    } 
+    return 0; 
+} 
+ 
+void commonSubExpression(char *line) { 
+    char var[50], expr[100]; 
+    if (sscanf(line, "%s = %[^\n;];", var, expr) == 2) { 
+        char used[50] = ""; 
+        for (int i = 0; expr[i]; i++) { 
+            if (isalpha(expr[i]) && islower(expr[i])) { 
+                if (!strchr(used, expr[i])) { 
+                    int len = strlen(used); 
+                    used[len] = expr[i]; 
+                    used[len+1] = 0; 
+                } 
+            } 
+        } 
+        for (int i = 0; i < exprCount; i++) { 
+            if (strcmp(exprMap[i].expr, expr) == 0 && 
+                !isModifiedBetween(used)) { 
+                sprintf(line, "%s = %s;", var, exprMap[i].var); 
+                return; 
+            } 
+        } 
+        strcpy(exprMap[exprCount].var, var); 
+        strcpy(exprMap[exprCount].expr, expr); 
+        exprCount++; 
+    } 
+} 
+ 
+void strengthReduction(char *line) { 
+    char var[50], expr[100]; 
+    if (sscanf(line, "%s = %[^\n;];", var, expr) == 2) { 
+        char base[50]; int num; 
+        if (sscanf(expr, "%[^*] * %d", base, &num) == 2) { 
+            char newExpr[200] = ""; 
+            for (int i = 0; i < num; i++) { 
+                strcat(newExpr, base); 
+                if (i < num-1) strcat(newExpr, " + "); 
+            } 
+            sprintf(line, "%s = %s;", var, newExpr); 
+        } 
+        if (sscanf(expr, "%[^'^'] ^ %d", base, &num) == 2) { 
+            char newExpr[200] = ""; 
+            for (int i = 0; i < num; i++) { 
+                strcat(newExpr, base); 
+                if (i < num-1) strcat(newExpr, " * "); 
+            } 
+            sprintf(line, "%s = %s;", var, newExpr); 
+        } 
+    } 
+} 
+ 
+int deadCode = 0, deadBlock = 0; 
+ 
+int deadCodeElimination(char *line) { 
+    if (strstr(line, "if (i==1)")) { deadCode = 1; return 1; } 
+    if (deadCode) { 
+        if (strstr(line, "{")) deadBlock++; 
+        if (strstr(line, "}")) { 
+            if (deadBlock == 0) { deadCode = 0; return 1; } 
+            else deadBlock--; 
+        } 
+        return 1; 
+    } 
+    return 0; 
+} 
+
+int inLoop = 0; 
+char loopBuffer[100][MAX]; 
+int loopCount = 0; 
+char loopHeader[100]; 
+ 
+void flushLoop(FILE *out) { 
+ 
+    for (int i = 0; i < loopCount; i++) { 
+        char var[50], expr[100]; 
+        if (sscanf(loopBuffer[i], "%s = %[^\n;];", var, expr) == 2) { 
+            int safe = 1; 
+            for (int j = 0; expr[j]; j++) { 
+                if (isalpha(expr[j]) && islower(expr[j])) { 
+                    for (int k = 0; k < loopCount; k++) { 
+                        char lvar[50]; 
+                        if (sscanf(loopBuffer[k], "%s =", lvar) == 1) { 
+                            if (lvar[0] == expr[j]) safe = 0; 
+                        } 
+                    } 
+                } 
+            } 
+            if (safe) { 
+                fprintf(out, "%s\n", loopBuffer[i]); 
+                loopBuffer[i][0] = 0; 
+            } 
+        } 
+    } 
+ 
+
+    fprintf(out, "%s\n{\n", loopHeader); 
+    for (int i = 0; i < loopCount; i++) { 
+        if (strlen(loopBuffer[i]) > 0) 
+            fprintf(out, "    %s\n", loopBuffer[i]); 
+    } 
+    fprintf(out, "}\n"); 
+ 
+    loopCount = 0; 
+    inLoop = 0; 
+} 
+ 
+int main() { 
+    FILE *in = fopen("input.c", "r"); 
+    FILE *out = fopen("optimized.c", "w"); 
+    if (!in || !out) { printf("Error opening files!\n"); return 1; } 
+ 
+    char line[MAX]; 
+    while (fgets(line, sizeof(line), in)) { 
+        trim(line); 
+        if (strlen(line) == 0) continue; 
+ 
+        if (deadCodeElimination(line)) continue; 
+ 
+        if (strstr(line, "while") || strstr(line, "for")) { 
+            inLoop = 1; 
+            strcpy(loopHeader, line); 
+            continue; 
+        } 
+ 
+        if (inLoop) { 
+            if (strstr(line, "}")) { 
+                flushLoop(out); 
+            } else { 
+                strcpy(loopBuffer[loopCount++], line); 
+            } 
+            continue; 
+        } 
+ 
+        commonSubExpression(line); 
+        strengthReduction(line); 
+        fprintf(out, "%s\n", line); 
+        markModified(line); 
+    } 
+ 
+    fclose(in); 
+    fclose(out); 
+    printf("Optimization complete! Check optimized.c\n"); 
+    return 0;
+}
