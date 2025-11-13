@@ -1,0 +1,67 @@
+  #include <stdio.h> 
+#include <string.h> 
+#include <ctype.h> 
+ 
+#define MAX 50 
+#define MAX_LEN 100 
+ 
+int main() { 
+    FILE *fp; 
+    int n, i, j, target; 
+    char tac[MAX][MAX_LEN]; 
+    int leaders[MAX] = {0}; 
+    char label[10]; 
+ 
+    fp = fopen("input.txt", "r"); 
+    if (fp == NULL) { 
+        printf("Error: Unable to open input.txt\n"); 
+        return 1; 
+    } 
+ 
+    fscanf(fp, "%d", &n); 
+    fgetc(fp); // consume newline after number 
+ 
+    for (i = 0; i < n; i++) { 
+        fgets(tac[i], MAX_LEN, fp); 
+        tac[i][strcspn(tac[i], "\n")] = '\0'; 
+    } 
+ 
+Vignesh Venkatesan 
+23BDS1056 
+    fclose(fp); 
+ 
+    leaders[0] = 1; 
+ 
+    for (i = 0; i < n; i++) { 
+        if (strstr(tac[i], "goto")) { 
+            for (j = 0; tac[i][j] != '\0'; j++) { 
+                if (tac[i][j] == 'L' && isdigit(tac[i][j + 1])) { 
+                    sscanf(&tac[i][j + 1], "%d", &target); 
+                    break; 
+                } 
+            } 
+            if (target >= 1 && target <= n) 
+                leaders[target - 1] = 1; 
+            if (i + 1 < n) 
+                leaders[i + 1] = 1; 
+        } 
+    } 
+ 
+    printf("\n--- Identified Leaders ---\n"); 
+    for (i = 0; i < n; i++) { 
+        if (leaders[i]) 
+            printf("Leader at statement %d: %s\n", i + 1, tac[i]); 
+    } 
+ 
+    printf("\n--- Constructed Basic Blocks ---\n"); 
+    for (i = 0; i < n; i++) { 
+        if (leaders[i]) { 
+            printf("\nBasic Block starting from statement %d:\n", i + 1); 
+            printf("%s\n", tac[i]); 
+            for (j = i + 1; j < n && !leaders[j]; j++) 
+                printf("%s\n", tac[j]); 
+        } 
+    } 
+ 
+    return 0; 
+}
