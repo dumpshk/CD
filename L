@@ -26,8 +26,7 @@ int main() {
         tac[i][strcspn(tac[i], "\n")] = '\0'; 
     } 
  
-Vignesh Venkatesan 
-23BDS1056 
+
     fclose(fp); 
  
     leaders[0] = 1; 
