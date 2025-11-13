@@ -1,0 +1,120 @@
+#include <stdio.h> 
+#include <string.h> 
+#include <ctype.h> 
+#include <stdbool.h> 
+ 
+#define N 20 
+ 
+char prod[N][N], firstSet[256][N], followSet[256][N]; 
+int n; 
+ 
+void add(char *s, char c){ 
+    if(c=='=') return; 
+    if(!strchr(s,c)){ 
+        int l=strlen(s); 
+        s[l]=c; 
+        s[l+1]='\0'; 
+    } 
+} 
+ 
+void FIRST(char c, char *res){ 
+    if(c=='=') return; 
+    if(!isupper(c)){ 
+        add(res,c); 
+        return; 
+    } 
+    for(int i=0;i<n;i++) if(prod[i][0]==c){ 
+        if(prod[i][2]=='#') add(res,'#'); 
+        else{ 
+            int j=2, allNullable=1; 
+            while(prod[i][j]){ 
+                if(prod[i][j]=='='){ j++; continue; } 
+                char tmp[N]=""; 
+                FIRST(prod[i][j],tmp); 
+                for(int k=0;tmp[k];k++) if(tmp[k]!='#') add(res,tmp[k]); 
+                if(!strchr(tmp,'#')){ 
+                    allNullable=0; 
+                    break; 
+                } 
+                j++; 
+            } 
+            if(allNullable) add(res,'#'); 
+        } 
+    } 
+} 
+ 
+void FOLLOW(char c, char *res){ 
+    if(c=='=') return; 
+    if(prod[0][0]==c) add(res,'$'); 
+    for(int i=0;i<n;i++) 
+        for(int j=2;prod[i][j];j++) if(prod[i][j]==c){ 
+            if(prod[i][j+1]){ 
+                if(prod[i][j+1]=='=') j++; 
+                char tmp[N]=""; 
+                FIRST(prod[i][j+1],tmp); 
+                for(int k=0;tmp[k];k++) if(tmp[k]!='#') add(res,tmp[k]); 
+                if(strchr(tmp,'#')) FOLLOW(prod[i][0],res); 
+            } 
+            else if(prod[i][0]!=c) FOLLOW(prod[i][0],res); 
+        } 
+} 
+ 
+bool is_terminal(char c){ 
+    return !isupper(c) && c != '#' && c != '='; 
+
+} 
+ 
+void printSet(char *set){ 
+    int len = strlen(set); 
+    for(int i=0; i<len; i++){ 
+        printf("%c", set[i]); 
+        if(i != len-1) printf(", "); 
+    } 
+} 
+ 
+int main(){ 
+    printf("Enter number of productions: "); 
+    scanf("%d",&n); 
+    printf("Enter productions (e.g. E=TR, use # for epsilon):\n"); 
+    for(int i=0;i<n;i++) scanf("%s",prod[i]); 
+ 
+    for(int i=0;i<n;i++){ 
+        char nt=prod[i][0]; 
+        if(!firstSet[nt][0]) FIRST(nt,firstSet[nt]); 
+        if(!followSet[nt][0]) FOLLOW(nt,followSet[nt]); 
+    } 
+ 
+    bool visited[256] = {0}; 
+    for(int i=0; i<n; i++){ 
+        for(int j=0; prod[i][j]; j++){ 
+            char c=prod[i][j]; 
+            if(c=='=') continue; 
+            if(!visited[(int)c]){ 
+                visited[(int)c]=1; 
+                if(is_terminal(c)){ 
+                    firstSet[c][0]=c; 
+                    firstSet[c][1]='\0'; 
+                } 
+                else if(isupper(c) && !firstSet[c][0]){ 
+                    FIRST(c, firstSet[c]); 
+                } 
+            } 
+        } 
+    } 
+ 
+    printf("\nFIRST sets:\n"); 
+    for(int i=0;i<256;i++){ 
+        if(visited[i]){ 
+            printf("FIRST(%c) = { ", (char)i); 
+            printSet(firstSet[i]); 
+            printf(" }\n"); 
+        } 
+    } 
+ 
+
+    printf("\nFOLLOW sets:\n"); 
+    for(int i=0;i<n;i++) printf("FOLLOW(%c) = { %s }\n",prod[i][0],followSet[prod[i][0]]); 
+ 
+    return 0; 
+} 
+ 
